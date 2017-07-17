@@ -4,9 +4,9 @@ import imp
 import shutil
 
 try:
-    import json
-except ImportError:
     import simplejson as json
+except ImportError:
+    import json
 
 TEST_FILE_DIR = os.path.realpath(os.path.dirname(__file__))
 SLPR_MODULE   = os.path.realpath(os.path.join(TEST_FILE_DIR, '..', '..', 'slpr.py'))

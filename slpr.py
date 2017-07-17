@@ -173,6 +173,7 @@ def parse_args(argv):
     cmd = argv[0]
     return (cmd, vars(args))
 
+
 def parse_version(version):
     """Parse a semver string - taken from semver python lib"""
     match = SEMVER_REGEX.match(version)
@@ -209,8 +210,10 @@ def compare_versions(version1, version2):
 
     return prerelease_cmp
 
+
 class SemverKeySort():
     def __init__(self, version):
+        """SemverKeySort used for key argument of sorted()"""
         self.version = version
 
     def __lt__(self, other_version):
@@ -223,6 +226,7 @@ class SemverKeySort():
 
     def __eq__(self, other_version):
         return self.version == other_version.version
+
 
 def _nat_cmp(compare_a, compare_b):
     """Natural comparison? Taken from semver python lib"""
@@ -380,8 +384,6 @@ def refresh_repository(repo_dir, log=None):
     else:
         log.info('Scanning repository at %s' % repo_dir)
 
-    # glob_ptn = '%s/*/*/*/metadata.json' % repo_dir
-
     total_plugins = 0
     total_versions = 0
 
@@ -391,7 +393,6 @@ def refresh_repository(repo_dir, log=None):
         for filename in fnmatch.filter(filenames, 'metadata.json'):
             fns.append(os.path.join(root, filename))
 
-    #for fn in glob.glob(glob_ptn, recursive=True):
     for fn in fns:
         with open(fn, 'r') as f:
             meta = json.load(f)
