@@ -1,7 +1,110 @@
-#!/usr/bin/env python   
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""slpr.py - Sourcelyzer Plugin Repository Tool
+
+This tool handles various tasks for managing a sourcelyzer plugin repository.
+
+Plugin Structure:
+    root
+    | - __init__.py         The plugin will be loaded as a python module. Use
+    |                       __init__.py to expose a class called Plugin.
+    | - plugin.ini          Metadata file of the plugin.
+
+You can include any other file in the root directory of the plugin, but these
+two files must exist within the zip file.
+
+
+plugin.ini format:
+[plugin]
+name=[plugin name]
+type=[plugin type]
+version=[plugin version]
+description=[plugin description]
+author=[plugin author]
+url=[plugin url]
+
+Plugin versions must follow the Semver format.
+
+
+Directory Structure:
+    root
+    | - plugins.json        A JSON list of available plugins
+    | - plugins.json.md5    A MD5 hash of plugins.json
+    | - plugins.json.sha256 A SHA256 hash of plugins.json
+    | - [plugin type]
+        | - [plugin name]
+            | - [plugin version]
+                | - metadata.json         Metadata of a plugin
+                | - metadata.json.md5     MD5 hash of metadata.json
+                | - metadata.json.sha256  SHA256 hash of metadata.json
+                | - [type].[name].[version].zip
+                |                         Zip file of the plugin.
+                | - [type].[name].[version].zip.md5
+                |                         MD5 hash of the plugin zip file
+                | - [type].[name].[version].zip.sha256
+                |                         SHA256 hash of the plugin zip filename
+
+plugins.json format:
+{
+    "[type]": {
+        "[name]": {
+            "versions": ["0.0.1","0.0.2",...],
+            "latest": "0.0.2",
+            "0.0.1": {
+                "md5": "[plugin zip md5]"
+                "sha256": "[plugin zip sha256]"
+            },
+            ...
+        }
+    }
+}
+
+metadata.json format
+{
+    "version": "[plugin version]",
+    "name": "[plugin name]",
+    "author": "[plugin author]",
+    "url": "[plugin url]",
+    "install_date": "[date when plugin was added to repository]",
+    "hashes": {
+        "md5": "[plugin zip md5]",
+        "sha256": "[plugin zip sha256]"
+    },
+    "type": "[plugin type]",
+    "description": "[plugin description]"
+}
+
+
+Install a Plugin:
+    slpr.py install-plugin -r REPOSITORY -p PLUGIN
+
+    Use this to install a plugin from a plugin zip file into a repository.
+    If REPOSITORY doesn't exist, then it will be created.
+
+    Options:
+
+        REPOSITORY: The directory of the repository you want to install the
+                   plugin to.
+
+        PLUGIN:     A path or URL to a plugin zip file
+
+Refresh/Create a Repository:
+    slpr.py refresh-repo -r REPOSITORY
+
+    Use this to refresh an existing repository or create a new one. This will
+    recreate your plugins.json file.
+
+    Options:
+
+        REPOSITORY: The directory of the repository. If it does not exist
+                    it will be created automatically.
+"""
+
 import hashlib
 import logging
-import os, re, shutil
+import os
+import re
+import shutil
 import zipfile
 import tempfile
 import datetime
@@ -9,48 +112,69 @@ import fnmatch
 import sys
 import argparse
 
-try: import simplejson as json
-except ImportError: import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 
-try: import ConfigParser as configparser
-except ImportError: configparser
+try:
+    import ConfigParser as configparser
+except ImportError:
+    import configparser
 
-SEMVER_REGEX = re.compile(
-        r"""
-        ^
-        (?P<major>(?:0|[1-9][0-9]*))
-        \.
-        (?P<minor>(?:0|[1-9][0-9]*))
-        \.
-        (?P<patch>(?:0|[1-9][0-9]*))
-        (\-(?P<prerelease>
-            (?:0|[1-9A-Za-z-][0-9A-Za-z-]*)
-            (\.(?:0|[1-9A-Za-z-][0-9A-Za-z-]*))*
-        ))?
-        (\+(?P<build>
-            [0-9A-Za-z-]+
-            (\.[0-9A-Za-z-]+)*
-        ))?
-        $
-        """, re.VERBOSE)
+if not hasattr(__builtins__, 'cmp'):
+    def cmp(cmp_a, cmp_b):
+        """python2.7 cmp() function"""
+        return (cmp_a > cmp_b) - (cmp_a < cmp_b)
+
+SEMVER_REGEX = re.compile(r"""
+^
+(?P<major>(?:0|[1-9][0-9]*))
+\.
+(?P<minor>(?:0|[1-9][0-9]*))
+\.
+(?P<patch>(?:0|[1-9][0-9]*))
+(\-(?P<prerelease>
+(?:0|[1-9A-Za-z-][0-9A-Za-z-]*)
+(\.(?:0|[1-9A-Za-z-][0-9A-Za-z-]*))*
+))?
+(\+(?P<build>
+  [0-9A-Za-z-]+
+  (\.[0-9A-Za-z-]+)*
+))?
+$
+""", re.VERBOSE)
+
 
 def parse_args(argv):
-
+    """Parse an argv array"""
     parser = argparse.ArgumentParser()
 
-    sp = parser.add_subparsers()
-    install = sp.add_parser('install-plugin', help='Install a plugin to a repository.')
-    install.add_argument('-p', '--plugin', action='store', help='Location of the plugin zip file. Can also point to a URL', required=True)
-    install.add_argument('-r', '--repository', action='store', help='Location of the repository. If the reository does not exist, it will be created.', required=True)
+    sub_parser = parser.add_subparsers()
 
-    refresh = sp.add_parser('refresh-repo', help='Refresh an existing repository or create a new one.')
-    refresh.add_argument('-r', '--repository', action='store', help='Location of the repository. If the reository does not exist, it will be created.', required=True)
+    install_args = sub_parser.add_parser('install-plugin', help='Install a plugin to a repository.')
+    install_args.add_argument(
+        '-p',
+        '--plugin',
+        action='store',
+        required=True,
+        help='Location of the plugin zip file. Can also point to a URL'
+    )
+
+    repo_help = 'Location of the repository. If the repository does not exist, it will be created'
+    install_args.add_argument('-r', '--repository', action='store', required=True, help=repo_help)
+
+    refresh_help = 'Refresh an existing repository or create a new one'
+    refresh_args = sub_parser.add_parser('refresh-repo', help=refresh_help)
+    refresh_args.add_argument('-r', '--repository', action='store', required=True, help=repo_help)
+
     args = parser.parse_args(argv)
 
     cmd = argv[0]
     return (cmd, vars(args))
 
 def parse_version(version):
+    """Parse a semver string - taken from semver python lib"""
     match = SEMVER_REGEX.match(version)
     if match is None:
         raise ValueError('%s is not a valid SemVer string' % version)
@@ -63,90 +187,96 @@ def parse_version(version):
     return version_parts
 
 
-def compare_versions(v1, v2):
-    v1 = parse_version(v1)
-    v2 = parse_version(v2)
+def compare_versions(version1, version2):
+    """Compare two semver strings - taken from semver python lib"""
+    version1 = parse_version(version1)
+    version2 = parse_version(version2)
 
     for key in ['major', 'minor', 'patch']:
-        v = cmp(v1.get(key), v2.get(key))
-        if v:
-            return v
+        version_cmp = cmp(version1.get(key), version2.get(key))
+        if version_cmp:
+            return version_cmp
 
-    rc1, rc2 = v1.get('prerelease'), d2.get('prerelease')
-    rccmp = _nat_cmp(rc1, rc2)
+    prerelease1, prerelease2 = version1.get('prerelease'), version2.get('prerelease')
+    prerelease_cmp = _nat_cmp(prerelease1, prerelease2)
 
-    if not rccmp:
+    if not prerelease_cmp:
         return 0
-    if not rc1:
+    if not prerelease1:
         return 1
-    elif not rc2:
+    elif not prerelease2:
         return -1
 
-    return rccmp
+    return prerelease_cmp
 
 
-def _nat_cmp(a, b):
+def _nat_cmp(compare_a, compare_b):
+    """Natural comparison? Taken from semver python lib"""
     def convert(text):
         return int(text) if re.match('[0-9]+', text) else text
 
     def split_key(key):
         return [convert(c) for c in key.split('.')]
 
-    def cmp_prerelease_tag(a, b):
-        if isinstance(a, int) and isinstance(b, int):
-            return cmp(a, b)
-        elif isinstance(a, int):
+    def cmp_prerelease_tag(compare_a, compare_b):
+        if isinstance(compare_a, int) and isinstance(compare_b, int):
+            return cmp(compare_a, compare_b)
+        elif isinstance(compare_a, int):
             return -1
-        elif isinstance(b, int):
+        elif isinstance(compare_b, int):
             return 1
         else:
-            return cmp(a, b)
+            return cmp(compare_a, compare_b)
 
-    a, b = a or '', b or ''
-    a_parts, b_parts = split_key(a), split_key(b)
+    compare_a, compare_b = compare_a or '', compare_b or ''
+    a_parts, b_parts = split_key(compare_a), split_key(compare_b)
     for sub_a, sub_b in zip(a_parts, b_parts):
         cmp_result = cmp_prerelease_tag(sub_a, sub_b)
         if cmp_result != 0:
             return cmp_result
     else:
-        return cmp(len(a), len(b))
+        return cmp(len(compare_a), len(compare_b))
 
-def hash_bytestr_iter(bytesiter, hasher, ashexstr=False):
-    for block in bytesiter:
-        hasher.update(block)
-    return hasher.hexdigest() if ashexstr else hasher.digest()
 
-def file_as_blockiter(afile, blocksize=65536):
-    with afile:
-        block = afile.read(blocksize)
-        while len(block) > 0:
-            yield block
-            block = afile.read(blocksize)
+def file_hash(filename, hasher):
+    """Calculate a hash sum of a file"""
+    blocksize = 65536
 
-def file_sums(fn):
-    md5sum = hash_bytestr_iter(file_as_blockiter(open(fn, 'rb')), hashlib.md5(), ashexstr=True)
-    sha256sum = hash_bytestr_iter(file_as_blockiter(open(fn, 'rb')), hashlib.sha256(), ashexstr=True)
+    with open(filename, 'rb') as fobj:
+        block = fobj.read(blocksize)
+
+        block_len = len(block)
+
+        if block_len > 0:
+            hasher.update(block)
+
+    return hasher.hexdigest()
+
+
+def file_sums(filename):
+    md5sum = file_hash(filename, hashlib.md5())
+    sha256sum = file_hash(filename, hashlib.sha256())
     return (md5sum, sha256sum)
 
 
-def install_plugin(fn, repo_dir, log=None):
-
+def install_plugin(plugin_zip, repo_dir, log=None):
+    """Install a plugin to a repository"""
     repo_dir = os.path.abspath(repo_dir)
-    fn = os.path.abspath(fn)
+    plugin_zip = os.path.abspath(plugin_zip)
 
-    if log == None:
+    if log is None:
         log = logging.getLogger('install-plugin')
 
     log.info('Repository Direcotry: %s' % repo_dir)
-    log.info('Plugin: %s' % fn)
+    log.info('Plugin: %s' % plugin_zip)
 
     if not os.path.exists(repo_dir):
-        raise FileNotFoundError('Repository directory does not exist: %s' % repo_dir)
+        refresh_repository(repo_dir)
 
-    if not os.path.exists(fn):
-        raise FileNotFoundError('Plugin does not exist: %s' % fn)
+    if not os.path.exists(plugin_zip):
+        raise OSError('Plugin does not exist: %s' % plugin_zip)
 
-    zip_ref = zipfile.ZipFile(fn, 'r')
+    zip_ref = zipfile.ZipFile(plugin_zip, 'r')
 
     tmpdirname = tempfile.mkdtemp(prefix='splr')
 
@@ -174,7 +304,7 @@ def install_plugin(fn, repo_dir, log=None):
 
         log.info('Creating hash sums')
 
-        md5sum, sha256sum = file_sums(fn)
+        md5sum, sha256sum = file_sums(plugin_zip)
 
         with open('%s.zip.md5' % os.path.join(plugin_dir, plugin_key), 'w') as f:
             f.write(md5sum)
@@ -186,7 +316,7 @@ def install_plugin(fn, repo_dir, log=None):
         log.info('SHA256: %s' % sha256sum)
 
         log.info('Copying file to repo')
-        shutil.copy(fn, os.path.join(plugin_dir, plugin_key + '.zip'))
+        shutil.copy(plugin_zip, os.path.join(plugin_dir, plugin_key + '.zip'))
 
         log.info('Creating metadata file')
 
@@ -221,7 +351,7 @@ def install_plugin(fn, repo_dir, log=None):
 
 
 def refresh_repository(repo_dir, log=None):
-    if log == None:
+    if log is None:
         log = logging.getLogger('refresh-plugins')
 
     plugin_db = {
@@ -236,7 +366,7 @@ def refresh_repository(repo_dir, log=None):
     else:
         log.info('Scanning repository at %s' % repo_dir)
 
-    glob_ptn = '%s/*/*/*/metadata.json' % repo_dir
+    # glob_ptn = '%s/*/*/*/metadata.json' % repo_dir
 
     total_plugins = 0
     total_versions = 0
@@ -246,7 +376,6 @@ def refresh_repository(repo_dir, log=None):
     for root, dirnames, filenames in os.walk(repo_dir):
         for filename in fnmatch.filter(filenames, 'metadata.json'):
             fns.append(os.path.join(root, filename))
-
 
     #for fn in glob.glob(glob_ptn, recursive=True):
     for fn in fns:
@@ -312,8 +441,10 @@ def install(plugin, repo):
     install_plugin(plugin, repo)
     refresh_repository(repo)
 
+
 def refresh(repo):
     refresh_repository(repo)
+
 
 def run(argv):
 
@@ -326,5 +457,3 @@ def run(argv):
 
 if __name__ == '__main__':
     run(sys.argv[1:])
-
-

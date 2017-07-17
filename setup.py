@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-setup(name='sllib',
+setup(name='slprlib',
       version='0.0.1',
       description='Sourcelyzer Plugin Repository',
       url='https://github.com/sourcelyzer/slpr',

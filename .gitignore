@@ -1,0 +1,10 @@
+*.pyc
+**/__pycache__
+venv
+venv3
+.tox
+.cache
+*.swp
+.coverage
+slprlib.egg-info
+reports/
