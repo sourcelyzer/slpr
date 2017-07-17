@@ -1,5 +1,0 @@
-cherrypy
-docopt
-colorama
-simplejson
-semver

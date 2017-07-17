@@ -1,7 +1,14 @@
 # slpr
 Sourcelyzer Plugin Repository
 
-This is the main repository for sourcelyzer plugins. There is currently no contribution guidelines.
+This is the main repository for sourcelyzer plugins.
 
-You can easily host your own repository using the slpr.py tool.
+## Contributing Your Plugin
+
+TBA
+
+## Self Publishing Your Plugin
+
+Use the slpr.py tool to setup a repository.
+
 
