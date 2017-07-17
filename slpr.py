@@ -209,6 +209,20 @@ def compare_versions(version1, version2):
 
     return prerelease_cmp
 
+class SemverKeySort():
+    def __init__(self, version):
+        self.version = version
+
+    def __lt__(self, other_version):
+        val = compare_versions(self.version, other_version.version)
+        return val < 0
+
+    def __gt__(self, other_version):
+        val = compare_versions(self.version, other_version.version)
+        return val > 0
+
+    def __eq__(self, other_version):
+        return self.version == other_version.version
 
 def _nat_cmp(compare_a, compare_b):
     """Natural comparison? Taken from semver python lib"""
@@ -408,7 +422,7 @@ def refresh_repository(repo_dir, log=None):
     for t in plugin_db['types']:
         for name in plugin_db[t]:
             total_plugins += 1
-            sorted_versions = sorted(plugin_db[t][name]['versions'], cmp=compare_versions)
+            sorted_versions = sorted(plugin_db[t][name]['versions'], key=SemverKeySort)
             total_versions = total_versions + len(sorted_versions)
             plugin_db[t][name]['versions'] = sorted_versions
             plugin_db[t][name]['latest'] = sorted_versions[-1:][0]

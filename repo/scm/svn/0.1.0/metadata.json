@@ -1,13 +1,13 @@
 {
-  "version": "0.1.0",
-  "name": "svn",
-  "author": "Alex Dow",
-  "url": "https://github.com/alex-dow/sourcelyzer",
-  "install_date": "2017-07-15T18:53:40.693863",
+  "version": "0.1.0", 
+  "name": "svn", 
+  "author": "Alex Dow", 
+  "url": "https://github.com/alex-dow/sourcelyzer", 
+  "install_date": "2017-07-17T01:54:17.324102", 
   "hashes": {
-    "sha256": "b589f5febcaccd112c45bef6ce6e4ce21ab649b2e6cbc74d77b4cd2d1418deaf",
+    "sha256": "b589f5febcaccd112c45bef6ce6e4ce21ab649b2e6cbc74d77b4cd2d1418deaf", 
     "md5": "02b0e13f84ec01c5719f253e72b8d196"
-  },
-  "type": "scm",
+  }, 
+  "type": "scm", 
   "description": "This is the plugin metadata file for the SCM plugin named 'svn'"
 }
