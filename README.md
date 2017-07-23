@@ -1,4 +1,4 @@
-# slpr ![Build Status](https://dev.psikon.org/jenkins/buildStatus/icon?job=slpr&style=plastic)
+# slpr ![Build Status](https://dev.psikon.org/jenkins/buildStatus/icon?job=slpr&style=plastic "Build Status")
 Sourcelyzer Plugin Repository
 
 This is the main repository for sourcelyzer plugins.
