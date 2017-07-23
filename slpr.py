@@ -127,6 +127,9 @@ if not hasattr(__builtins__, 'cmp'):
         """python2.7 cmp() function"""
         return (cmp_a > cmp_b) - (cmp_a < cmp_b)
 
+logger = logging.getLogger()
+
+
 SEMVER_REGEX = re.compile(r"""
 ^
 (?P<major>(?:0|[1-9][0-9]*))
@@ -151,6 +154,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser()
 
     sub_parser = parser.add_subparsers()
+
+    init_args = sub_parser.add_parser('init-plugin', help='Setup a new plugin')
 
     install_args = sub_parser.add_parser('install-plugin', help='Install a plugin to a repository.')
     install_args.add_argument(
@@ -276,6 +281,29 @@ def file_sums(filename):
     sha256sum = file_hash(filename, hashlib.sha256())
     return (md5sum, sha256sum)
 
+def prepare_plugin_zip(plugin_dir):
+
+    config = configparser.ConfigParser()
+    config.read(os.path.join(plugin_dir, 'plugin.ini'))
+
+    plugin_type = config['plugin']['type']
+    plugin_name = config['plugin']['name']
+    plugin_version = config['plugin']['version']
+
+    plugin_key = '%s.%s-%s' % (plugin_type, plugin_name, plugin_version)
+
+    plugin_zip = os.path.join(plugin_dir, '%s.zip' % plugin_key)
+
+    with zipfile.ZipFile(plugin_zip, 'w') as zf:
+        for root, dirs, files in os.walk(plugin_dir):
+            for fn in files:
+                if fn == os.path.basename(plugin_zip):
+                    continue
+                print('FILE: %s' % fn)
+                zf.write(os.path.join(root, fn), fn)
+
+    return plugin_zip
+
 
 def install_plugin(plugin_zip, repo_dir, log=None):
     """Install a plugin to a repository"""
@@ -284,6 +312,9 @@ def install_plugin(plugin_zip, repo_dir, log=None):
 
     if log is None:
         log = logging.getLogger('install-plugin')
+
+    if os.path.isdir(plugin_zip):
+        plugin_zip = prepare_plugin_zip(plugin_zip)
 
     log.info('Repository Direcotry: %s' % repo_dir)
     log.info('Plugin: %s' % plugin_zip)
@@ -460,6 +491,75 @@ def install(plugin, repo):
 def refresh(repo):
     refresh_repository(repo)
 
+def ask_generic(msg, default=None, valids=None):
+    msg = '[x] %s' % msg
+
+    if default != None:
+        msg += ' (%s)' % default
+    msg += ': '
+
+
+    while True:
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+        user_input = sys.stdin.readline().strip()
+        if valids != None and user_input not in valids:
+            continue
+        elif user_input == "" and default == None:
+            continue
+        elif user_input == "" and default != None:
+            user_input = default
+            break
+        else:
+            break
+    return user_input
+
+
+def init_plugin():
+
+    plugin_dir = ask_generic('Directory to create plugin in')
+    plugin_name = ask_generic('Plugin name')
+    plugin_type = ask_generic('Plugin type')
+    plugin_version = ask_generic('Plugin version','0.0.1')
+    plugin_author = ask_generic('Author', '')
+    plugin_url = ask_generic('Plugin Homepage', '')
+    plugin_desc = ask_generic('Description', '')
+
+    plugin_key = '%s.%s-%s' % (plugin_type, plugin_name, plugin_version)
+
+    output = """; Plugin Key: %s
+[plugin]
+name=%s
+type=%s
+version=%s
+description=%s
+author=%s
+url=%s
+
+; Settings
+;
+; Format: [settings:(global|project):(setting_field_name)]
+;
+; EG:
+; [settings:global:limit]
+; name=Limit Values
+; description=Set a limit on the number of values allowed, or set to 0 for no limit
+; type=number
+; default=0
+"""
+
+    final_dir = os.path.join(plugin_dir, plugin_key)
+
+    if not os.path.exists(final_dir):
+        os.makedirs(final_dir)
+
+    with open(os.path.join(final_dir, 'plugin.ini'), 'w') as f:
+       f.write(output % (plugin_key, plugin_name, plugin_type, plugin_version, plugin_desc, plugin_author, plugin_url))
+
+    if not os.path.exists(os.path.join(final_dir, '__init__.py')):
+        with open(os.path.join(final_dir, '__init__.py'),'w') as f: 
+            f.write('; plugin definition')
+
 
 def run(argv):
 
@@ -469,6 +569,8 @@ def run(argv):
         install(args['plugin'], args['repository'])
     elif cmd == 'refresh-repo':
         refresh(args['repository'])
+    elif cmd == 'init-plugin':
+        init_plugin()
 
 if __name__ == '__main__':
     run(sys.argv[1:])
