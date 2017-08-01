@@ -17,7 +17,7 @@ two files must exist within the zip file.
 plugin.ini format:
 [plugin]
 name=[plugin name]
-type=[plugin type]
+group=[plugin group]
 version=[plugin version]
 description=[plugin description]
 author=[plugin author]
@@ -31,22 +31,22 @@ Directory Structure:
     | - plugins.json        A JSON list of available plugins
     | - plugins.json.md5    A MD5 hash of plugins.json
     | - plugins.json.sha256 A SHA256 hash of plugins.json
-    | - [plugin type]
+    | - [plugin group]
         | - [plugin name]
             | - [plugin version]
                 | - metadata.json         Metadata of a plugin
                 | - metadata.json.md5     MD5 hash of metadata.json
                 | - metadata.json.sha256  SHA256 hash of metadata.json
-                | - [type].[name].[version].zip
+                | - [group].[name].[version].zip
                 |                         Zip file of the plugin.
-                | - [type].[name].[version].zip.md5
+                | - [group].[name].[version].zip.md5
                 |                         MD5 hash of the plugin zip file
-                | - [type].[name].[version].zip.sha256
+                | - [group].[name].[version].zip.sha256
                 |                         SHA256 hash of the plugin zip filename
 
 plugins.json format:
 {
-    "[type]": {
+    "[group]": {
         "[name]": {
             "versions": ["0.0.1","0.0.2",...],
             "latest": "0.0.2",
@@ -70,7 +70,7 @@ metadata.json format
         "md5": "[plugin zip md5]",
         "sha256": "[plugin zip sha256]"
     },
-    "type": "[plugin type]",
+    "group": "[plugin group]",
     "description": "[plugin description]"
 }
 
@@ -119,15 +119,17 @@ except ImportError:
 
 try:
     import ConfigParser as configparser
+    from ConfigParser import NoOptionError
 except ImportError:
     import configparser
+    from configparser import NoOptionError
 
 if not hasattr(__builtins__, 'cmp'):
     def cmp(cmp_a, cmp_b):
         """python2.7 cmp() function"""
         return (cmp_a > cmp_b) - (cmp_a < cmp_b)
 
-logger = logging.getLogger()
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 SEMVER_REGEX = re.compile(r"""
@@ -286,11 +288,11 @@ def prepare_plugin_zip(plugin_dir):
     config = configparser.ConfigParser()
     config.read(os.path.join(plugin_dir, 'plugin.ini'))
 
-    plugin_type = config['plugin']['type']
+    plugin_group = config['plugin']['group']
     plugin_name = config['plugin']['name']
     plugin_version = config['plugin']['version']
 
-    plugin_key = '%s.%s-%s' % (plugin_type, plugin_name, plugin_version)
+    plugin_key = '%s.%s-%s' % (plugin_group, plugin_name, plugin_version)
 
     plugin_zip = os.path.join(plugin_dir, '%s.zip' % plugin_key)
 
@@ -299,7 +301,6 @@ def prepare_plugin_zip(plugin_dir):
             for fn in files:
                 if fn == os.path.basename(plugin_zip):
                     continue
-                print('FILE: %s' % fn)
                 zf.write(os.path.join(root, fn), fn)
 
     return plugin_zip
@@ -336,17 +337,16 @@ def install_plugin(plugin_zip, repo_dir, log=None):
         config = configparser.ConfigParser()
         config.read(tmpdirname + '/plugin.ini')
 
-        print(config.__dict__)
 
         plugin_name = config.get('plugin', 'name')
-        plugin_type = config.get('plugin', 'type')
+        plugin_group = config.get('plugin', 'group')
         plugin_version = config.get('plugin', 'version')
 
-        plugin_key = '%s.%s-%s' % (plugin_type, plugin_name, plugin_version)
+        plugin_key = '%s.%s-%s' % (plugin_group, plugin_name, plugin_version)
 
         log.info('Detected plugin: %s' % plugin_key)
 
-        plugin_dir = os.path.join(repo_dir, plugin_type, plugin_name, plugin_version)
+        plugin_dir = os.path.join(repo_dir, plugin_group, plugin_name, plugin_version)
 
         if not os.path.exists(plugin_dir):
             os.makedirs(plugin_dir)
@@ -371,7 +371,7 @@ def install_plugin(plugin_zip, repo_dir, log=None):
 
         plugin_data = {
             'name': plugin_name,
-            'type': plugin_type,
+            'group': plugin_group,
             'version': plugin_version,
             'description': config.get('plugin', 'description'),
             'author': config.get('plugin', 'author'),
@@ -395,6 +395,10 @@ def install_plugin(plugin_zip, repo_dir, log=None):
 
         with open('%s.sha256' % plugin_metadata_fn, 'w') as f:
             f.write(metadata_sha)
+    except NoOptionError as e:
+        log.error('Plugin configuration is bad')
+        log.error(e.message)
+        raise e
     finally:
         shutil.rmtree(tmpdirname)
 
@@ -404,7 +408,7 @@ def refresh_repository(repo_dir, log=None):
         log = logging.getLogger('refresh-plugins')
 
     plugin_db = {
-        'types': []
+        'groups': []
     }
 
     repo_dir = os.path.abspath(repo_dir)
@@ -428,30 +432,30 @@ def refresh_repository(repo_dir, log=None):
         with open(fn, 'r') as f:
             meta = json.load(f)
 
-            plugin_key = '%s.%s-%s' % (meta['type'], meta['name'], meta['version'])
+            plugin_key = '%s.%s-%s' % (meta['group'], meta['name'], meta['version'])
 
             log.info('Found plugin: %s' % plugin_key)
 
-            if meta['type'] not in plugin_db['types']:
-                plugin_db['types'].append(meta['type'])
+            if meta['group'] not in plugin_db['groups']:
+                plugin_db['groups'].append(meta['group'])
 
-            if meta['type'] not in plugin_db:
-                plugin_db[meta['type']] = {}
+            if meta['group'] not in plugin_db:
+                plugin_db[meta['group']] = {}
 
-            if meta['name'] not in plugin_db[meta['type']]:
-                plugin_db[meta['type']][meta['name']] = {
+            if meta['name'] not in plugin_db[meta['group']]:
+                plugin_db[meta['group']][meta['name']] = {
                     'latest': None,
                     'versions': []
                 }
 
-            plugin_metadata = plugin_db[meta['type']][meta['name']]
+            plugin_metadata = plugin_db[meta['group']][meta['name']]
 
             if meta['version'] not in plugin_metadata['versions']:
                 plugin_metadata['versions'].append(meta['version'])
 
-            plugin_db[meta['type']][meta['name']] = plugin_metadata
+            plugin_db[meta['group']][meta['name']] = plugin_metadata
 
-    for t in plugin_db['types']:
+    for t in plugin_db['groups']:
         for name in plugin_db[t]:
             total_plugins += 1
             sorted_versions = sorted(plugin_db[t][name]['versions'], key=SemverKeySort)
@@ -481,8 +485,6 @@ def refresh_repository(repo_dir, log=None):
 def install(plugin, repo):
     if not os.path.exists(repo):
         refresh_repository(repo)
-
-    print(plugin, repo)
 
     install_plugin(plugin, repo)
     refresh_repository(repo)
@@ -519,18 +521,18 @@ def init_plugin():
 
     plugin_dir = ask_generic('Directory to create plugin in')
     plugin_name = ask_generic('Plugin name')
-    plugin_type = ask_generic('Plugin type')
+    plugin_group = ask_generic('Plugin group')
     plugin_version = ask_generic('Plugin version','0.0.1')
     plugin_author = ask_generic('Author', '')
     plugin_url = ask_generic('Plugin Homepage', '')
     plugin_desc = ask_generic('Description', '')
 
-    plugin_key = '%s.%s-%s' % (plugin_type, plugin_name, plugin_version)
+    plugin_key = '%s.%s-%s' % (plugin_group, plugin_name, plugin_version)
 
     output = """; Plugin Key: %s
 [plugin]
 name=%s
-type=%s
+group=%s
 version=%s
 description=%s
 author=%s
@@ -554,7 +556,7 @@ url=%s
         os.makedirs(final_dir)
 
     with open(os.path.join(final_dir, 'plugin.ini'), 'w') as f:
-       f.write(output % (plugin_key, plugin_name, plugin_type, plugin_version, plugin_desc, plugin_author, plugin_url))
+       f.write(output % (plugin_key, plugin_name, plugin_group, plugin_version, plugin_desc, plugin_author, plugin_url))
 
     if not os.path.exists(os.path.join(final_dir, '__init__.py')):
         with open(os.path.join(final_dir, '__init__.py'),'w') as f: 

@@ -65,7 +65,7 @@ def test_install_plugin():
         assert plugin_db['testenv']['fake_plugin1']['latest'] == '0.1.0'
         assert plugin_db['testenv']['fake_plugin1']['versions'] == ['0.0.1','0.1.0']
 
-        assert plugin_db['types'] == ['testenv']
+        assert plugin_db['groups'] == ['testenv']
 
     finally:
         if os.path.exists(repo_dir):

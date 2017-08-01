@@ -1,0 +1,13 @@
+{
+  "install_date": "2017-08-01T22:42:17.616894",
+  "author": "",
+  "hashes": {
+    "sha256": "a5c73dbf4fa290981bc1d7485a578afaae3f745a4425332fa344a4c9957c62fc",
+    "md5": "ac35cc39e5c6b58a682d849253a44582"
+  },
+  "group": "sourcelyzer",
+  "version": "0.1.0",
+  "description": "",
+  "url": "",
+  "name": "svn"
+}
