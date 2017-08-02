@@ -1,13 +1,13 @@
 {
-  "description": "",
-  "author": "",
-  "version": "0.0.1",
-  "hashes": {
-    "md5": "7c7d2fac1941dfe3df0af7565126cd48",
-    "sha256": "faececf15f5e0ee2a64ff0d1d89be0ca5643de6c961ddb8aa0b4be301d050ca6"
-  },
   "group": "sourcelyzer",
+  "install_date": "2017-08-02T23:42:27.601698",
   "url": "",
-  "install_date": "2017-08-01T22:33:31.319980",
-  "name": "svn"
+  "hashes": {
+    "sha256": "faececf15f5e0ee2a64ff0d1d89be0ca5643de6c961ddb8aa0b4be301d050ca6",
+    "md5": "7c7d2fac1941dfe3df0af7565126cd48"
+  },
+  "author": "",
+  "name": "svn",
+  "description": "",
+  "version": "0.0.1"
 }
