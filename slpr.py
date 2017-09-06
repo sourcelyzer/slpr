@@ -4,15 +4,12 @@
 
 This tool handles various tasks for managing a sourcelyzer plugin repository.
 
-Plugin Structure:
-    root
-    | - __init__.py         The plugin will be loaded as a python module. Use
-    |                       __init__.py to expose a class called Plugin.
-    | - plugin.ini          Metadata file of the plugin.
+There are two types of plugins: javascript and python.
 
-You can include any other file in the root directory of the plugin, but these
-two files must exist within the zip file.
+Python plugins have the structure of a standard python project. Dependencies
+should be specified in setup.py's install_requires.
 
+Plugins require a plugin.ini containing the plugin metadata.
 
 plugin.ini format:
 [plugin]

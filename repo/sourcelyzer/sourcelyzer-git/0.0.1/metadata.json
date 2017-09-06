@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "group": "sourcelyzer",
+  "name": "sourcelyzer-git",
+  "author": "",
+  "url": "",
+  "hashes": {
+    "sha256": "e7a930b72ca8a25a0aa91f61f6fc105c14ca02c3e4ebfef18c35c20f6277a03e",
+    "md5": "88d52fcf42bee173b76a43288a6da7fc"
+  },
+  "install_date": "2017-09-06T02:13:01.897540",
+  "description": ""
+}

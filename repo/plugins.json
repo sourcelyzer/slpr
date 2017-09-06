@@ -6,6 +6,12 @@
         "0.1.0"
       ],
       "latest": "0.1.0"
+    },
+    "sourcelyzer-git": {
+      "versions": [
+        "0.0.1"
+      ],
+      "latest": "0.0.1"
     }
   },
   "groups": [
