@@ -42,12 +42,12 @@ def test_install_plugin():
         slpr.run(args)
 
         for ver in ['0.0.1', '0.1.0']:
-            plugin_dir = os.path.join(repo_dir, 'testenv', 'fake_plugin1', ver)
+            plugin_dir = os.path.join(repo_dir, 'fake_plugin1', ver)
 
             expected_files = [
-                os.path.join(plugin_dir, 'testenv.fake_plugin1-%s.zip' % ver),
-                os.path.join(plugin_dir, 'testenv.fake_plugin1-%s.zip.md5' % ver),
-                os.path.join(plugin_dir, 'testenv.fake_plugin1-%s.zip.sha256' % ver),
+                os.path.join(plugin_dir, 'fake_plugin1-%s.zip' % ver),
+                os.path.join(plugin_dir, 'fake_plugin1-%s.zip.md5' % ver),
+                os.path.join(plugin_dir, 'fake_plugin1-%s.zip.sha256' % ver),
                 os.path.join(plugin_dir, 'metadata.json'),
                 os.path.join(plugin_dir, 'metadata.json.md5'),
                 os.path.join(plugin_dir, 'metadata.json.sha256')
@@ -62,10 +62,8 @@ def test_install_plugin():
 
         plugin_db = json.load(open(plugin_db_file))
 
-        assert plugin_db['testenv']['fake_plugin1']['latest'] == '0.1.0'
-        assert plugin_db['testenv']['fake_plugin1']['versions'] == ['0.0.1','0.1.0']
-
-        assert plugin_db['groups'] == ['testenv']
+        assert plugin_db['plugins']['fake_plugin1']['latest'] == '0.1.0'
+        assert plugin_db['plugins']['fake_plugin1']['versions'] == ['0.0.1','0.1.0']
 
     finally:
         if os.path.exists(repo_dir):

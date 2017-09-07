@@ -11,10 +11,13 @@ should be specified in setup.py's install_requires.
 
 Plugins require a plugin.ini containing the plugin metadata.
 
+Plugin name needs to match python module name. Plugins whose name is prefixed
+"sourcelyzer-" are considered official sourcelyzer plugins. Any plugin
+installed from a repo other than the default one are unofficial plugins.
+
 plugin.ini format:
 [plugin]
 name=[plugin name]
-group=[plugin group]
 version=[plugin version]
 description=[plugin description]
 author=[plugin author]
@@ -28,31 +31,30 @@ Directory Structure:
     | - plugins.json        A JSON list of available plugins
     | - plugins.json.md5    A MD5 hash of plugins.json
     | - plugins.json.sha256 A SHA256 hash of plugins.json
-    | - [plugin group]
-        | - [plugin name]
-            | - [plugin version]
-                | - metadata.json         Metadata of a plugin
-                | - metadata.json.md5     MD5 hash of metadata.json
-                | - metadata.json.sha256  SHA256 hash of metadata.json
-                | - [group].[name].[version].zip
-                |                         Zip file of the plugin.
-                | - [group].[name].[version].zip.md5
-                |                         MD5 hash of the plugin zip file
-                | - [group].[name].[version].zip.sha256
-                |                         SHA256 hash of the plugin zip filename
+    | - [plugin name]
+        | - [plugin version]
+            | - metadata.json         Metadata of a plugin
+            | - metadata.json.md5     MD5 hash of metadata.json
+            | - metadata.json.sha256  SHA256 hash of metadata.json
+            | - [name]-[version].zip
+            |                         Zip file of the plugin.
+            | - [name]-[version].zip.md5
+            |                         MD5 hash of the plugin zip file
+            | - [name]-[version].zip.sha256
+            |                         SHA256 hash of the plugin zip filename
 
 plugins.json format:
 {
-    "[group]": {
+    "plugins": {
         "[name]": {
             "versions": ["0.0.1","0.0.2",...],
             "latest": "0.0.2",
             "0.0.1": {
                 "md5": "[plugin zip md5]"
                 "sha256": "[plugin zip sha256]"
-            },
-            ...
-        }
+            }
+        },
+        ...
     }
 }
 
@@ -67,7 +69,6 @@ metadata.json format
         "md5": "[plugin zip md5]",
         "sha256": "[plugin zip sha256]"
     },
-    "group": "[plugin group]",
     "description": "[plugin description]"
 }
 
@@ -285,11 +286,10 @@ def prepare_plugin_zip(plugin_dir):
     config = configparser.ConfigParser()
     config.read(os.path.join(plugin_dir, 'plugin.ini'))
 
-    plugin_group = config['plugin']['group']
     plugin_name = config['plugin']['name']
     plugin_version = config['plugin']['version']
 
-    plugin_key = '%s.%s-%s' % (plugin_group, plugin_name, plugin_version)
+    plugin_key = '%s-%s' % (plugin_name, plugin_version)
 
     plugin_zip = os.path.join(plugin_dir, '%s.zip' % plugin_key)
 
@@ -336,14 +336,13 @@ def install_plugin(plugin_zip, repo_dir, log=None):
 
 
         plugin_name = config.get('plugin', 'name')
-        plugin_group = config.get('plugin', 'group')
         plugin_version = config.get('plugin', 'version')
 
-        plugin_key = '%s.%s-%s' % (plugin_group, plugin_name, plugin_version)
+        plugin_key = '%s-%s' % (plugin_name, plugin_version)
 
         log.info('Detected plugin: %s' % plugin_key)
 
-        plugin_dir = os.path.join(repo_dir, plugin_group, plugin_name, plugin_version)
+        plugin_dir = os.path.join(repo_dir, plugin_name, plugin_version)
 
         if not os.path.exists(plugin_dir):
             os.makedirs(plugin_dir)
@@ -368,7 +367,6 @@ def install_plugin(plugin_zip, repo_dir, log=None):
 
         plugin_data = {
             'name': plugin_name,
-            'group': plugin_group,
             'version': plugin_version,
             'description': config.get('plugin', 'description'),
             'author': config.get('plugin', 'author'),
@@ -405,7 +403,7 @@ def refresh_repository(repo_dir, log=None):
         log = logging.getLogger('refresh-plugins')
 
     plugin_db = {
-        'groups': []
+        'plugins': {}
     }
 
     repo_dir = os.path.abspath(repo_dir)
@@ -429,36 +427,29 @@ def refresh_repository(repo_dir, log=None):
         with open(fn, 'r') as f:
             meta = json.load(f)
 
-            plugin_key = '%s.%s-%s' % (meta['group'], meta['name'], meta['version'])
+            plugin_key = '%s-%s' % (meta['name'], meta['version'])
 
             log.info('Found plugin: %s' % plugin_key)
 
-            if meta['group'] not in plugin_db['groups']:
-                plugin_db['groups'].append(meta['group'])
-
-            if meta['group'] not in plugin_db:
-                plugin_db[meta['group']] = {}
-
-            if meta['name'] not in plugin_db[meta['group']]:
-                plugin_db[meta['group']][meta['name']] = {
+            if meta['name'] not in plugin_db['plugins']:
+                plugin_db['plugins'][meta['name']] = {
                     'latest': None,
                     'versions': []
                 }
 
-            plugin_metadata = plugin_db[meta['group']][meta['name']]
+            plugin_metadata = plugin_db['plugins'][meta['name']]
 
             if meta['version'] not in plugin_metadata['versions']:
                 plugin_metadata['versions'].append(meta['version'])
 
-            plugin_db[meta['group']][meta['name']] = plugin_metadata
+            plugin_db['plugins'][meta['name']] = plugin_metadata
 
-    for t in plugin_db['groups']:
-        for name in plugin_db[t]:
-            total_plugins += 1
-            sorted_versions = sorted(plugin_db[t][name]['versions'], key=SemverKeySort)
-            total_versions = total_versions + len(sorted_versions)
-            plugin_db[t][name]['versions'] = sorted_versions
-            plugin_db[t][name]['latest'] = sorted_versions[-1:][0]
+    for name in plugin_db['plugins']:
+        total_plugins += 1
+        sorted_versions = sorted(plugin_db['plugins'][name]['versions'], key=SemverKeySort)
+        total_versions = total_versions + len(sorted_versions)
+        plugin_db['plugins'][name]['versions'] = sorted_versions
+        plugin_db['plugins'][name]['latest'] = sorted_versions[-1:][0]
 
     log.info('Total Plugins: %s' % total_plugins)
     log.info('Total Versions: %s' % total_versions)
@@ -518,18 +509,16 @@ def init_plugin():
 
     plugin_dir = ask_generic('Directory to create plugin in')
     plugin_name = ask_generic('Plugin name')
-    plugin_group = ask_generic('Plugin group')
     plugin_version = ask_generic('Plugin version','0.0.1')
     plugin_author = ask_generic('Author', '')
     plugin_url = ask_generic('Plugin Homepage', '')
     plugin_desc = ask_generic('Description', '')
 
-    plugin_key = '%s.%s-%s' % (plugin_group, plugin_name, plugin_version)
+    plugin_key = '%s-%s' % (plugin_name, plugin_version)
 
     output = """; Plugin Key: %s
 [plugin]
 name=%s
-group=%s
 version=%s
 description=%s
 author=%s
@@ -553,7 +542,7 @@ url=%s
         os.makedirs(final_dir)
 
     with open(os.path.join(final_dir, 'plugin.ini'), 'w') as f:
-       f.write(output % (plugin_key, plugin_name, plugin_group, plugin_version, plugin_desc, plugin_author, plugin_url))
+       f.write(output % (plugin_key, plugin_name, plugin_version, plugin_desc, plugin_author, plugin_url))
 
     if not os.path.exists(os.path.join(final_dir, '__init__.py')):
         with open(os.path.join(final_dir, '__init__.py'),'w') as f: 
